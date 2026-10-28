@@ -1,0 +1,44 @@
+name: Verify P2604 computer-assisted proof
+
+on:
+  push:
+    paths:
+      - "README.md"
+      - "enumerate_graphs_8.cpp"
+      - "build_certificates.py"
+      - "verify_exact.py"
+      - ".github/workflows/verify.yml"
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  exact-certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install certificate-builder dependencies
+        run: python -m pip install --upgrade pip numpy scipy
+      - name: Generate all connected eight-vertex graph classes
+        run: |
+          g++ -O3 -std=c++17 enumerate_graphs_8.cpp -o enumerate_graphs_8
+          ./enumerate_graphs_8 > graphs8_masks.txt
+          test "$(wc -l < graphs8_masks.txt)" -eq 11117
+      - name: Produce dual certificates, rejecting invalid rational duals
+        run: python build_certificates.py
+      - name: Independently verify the claimed universal bound with integers
+        run: python verify_exact.py
+      - name: Preserve independently checkable certificates
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: p2604-exact-certificates
+          path: |
+            graphs8_masks.txt
+            p2604_duals.json.gz
+          retention-days: 90
